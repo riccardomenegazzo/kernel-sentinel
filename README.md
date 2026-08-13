@@ -41,7 +41,7 @@ The userspace side adds executable/cmdline information from `/proc`, basic Docke
 
 ## Build
 
-The project expects Linux with BTF exposed at `/sys/kernel/btf/vmlinux`. The file-open hook also needs BPF LSM enabled.
+The project expects Linux with BTF exposed at `/sys/kernel/btf/vmlinux`. The LSM hooks also need BPF LSM enabled.
 
 Typical Debian/Ubuntu dependencies:
 
@@ -64,7 +64,7 @@ make release
 
 `src/bpf/vmlinux.h` is generated from the running kernel and is not committed.
 
-Run:
+Run in the default audit-only mode:
 
 ```bash
 sudo ./target/release/kernel-sentinel --policy policies/default.yaml
@@ -81,6 +81,16 @@ Detections are emitted as newline-delimited JSON. The Rust core can be tested wi
 ```bash
 cargo test --lib
 ```
+
+## Policy mode
+
+The runtime stays audit-only unless an explicit cgroup is selected. The current prevention experiment rejects execution below `/tmp` only for that cgroup:
+
+```bash
+sudo ./target/release/kernel-sentinel --enforce-cgroup <CGROUP_ID>
+```
+
+The policy map is empty by default; there is no global deny mode. The narrow scope is deliberate because mistakes at an LSM decision point are much more expensive than mistakes in a userspace detection rule.
 
 ## Rules
 
