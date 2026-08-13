@@ -130,6 +130,9 @@ mod tests {
         table.observe(&event(11, 10));
 
         let chain = table.lineage(11, 8);
-        assert_eq!(chain.iter().map(|p| p.pid).collect::<Vec<_>>(), vec![11, 10, 1]);
+        assert_eq!(
+            chain.iter().map(|p| p.pid).collect::<Vec<_>>(),
+            vec![11, 10, 1]
+        );
     }
 }
