@@ -27,6 +27,9 @@ jobs:
       - name: Install native dependencies
         run: sudo apt-get update && sudo apt-get install -y clang llvm linux-tools-$(uname -r) libelf-dev zlib1g-dev pkg-config
       - name: Generate header
-        run: make bootstrap
+        run: |
+          TOOL=$(dpkg -L linux-tools-$(uname -r) | grep '/bpftool$' | head -n1)
+          test -n "$TOOL"
+          "$TOOL" btf dump file /sys/kernel/btf/vmlinux format c > src/bpf/vmlinux.h
       - name: Check native build
         run: cargo check --features bpf
