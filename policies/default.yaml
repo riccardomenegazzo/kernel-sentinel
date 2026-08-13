@@ -52,3 +52,12 @@ rules:
     match:
       event: file_open
       path_exact: /etc/shadow
+
+  - id: KS-POLICY-001
+    name: Runtime policy denial
+    severity: critical
+    score: 100
+    description: A configured kernel policy rejected an operation for the selected workload.
+    tags: [prevention, kernel-policy]
+    match:
+      event: lsm_deny
