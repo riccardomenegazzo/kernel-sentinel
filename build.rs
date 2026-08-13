@@ -6,14 +6,14 @@ fn main() {
         return;
     }
 
-    println!("cargo:rerun-if-changed=src/bpf/process.bpf.c");
+    println!("cargo:rerun-if-changed=src/bpf/runtime.bpf.c");
 
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR must be set"));
     let object = out_dir.join("sentinel.o");
     let skeleton = out_dir.join("sentinel.skel.rs");
 
     SkeletonBuilder::new()
-        .source("src/bpf/process.bpf.c")
+        .source("src/bpf/runtime.bpf.c")
         .obj(&object)
         .clang_args(["-Isrc/bpf"])
         .build_and_generate(&skeleton)
