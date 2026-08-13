@@ -51,7 +51,10 @@ impl Renderer {
                     .collect::<Vec<_>>()
                     .join(" -> ");
 
-                println!("[{:?}] {} ({})", item.severity, item.rule_name, item.rule_id);
+                println!(
+                    "[{:?}] {} ({})",
+                    item.severity, item.rule_name, item.rule_id
+                );
                 println!("  score:   {}", item.score);
                 println!("  process: {} ({})", item.event.comm, item.event.tgid);
                 println!("  binary:  {binary}");
