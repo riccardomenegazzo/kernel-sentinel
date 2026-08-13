@@ -28,7 +28,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y clang llvm linux-tools-$(uname -r) libelf-dev zlib1g-dev pkg-config
       - name: Generate header
         run: |
-          TOOL=$(dpkg -L linux-tools-$(uname -r) | grep '/bpftool$' | head -n1)
+          TOOL=$(find /usr/lib/linux-tools -type f -name bpftool -print -quit)
           test -n "$TOOL"
           "$TOOL" btf dump file /sys/kernel/btf/vmlinux format c > src/bpf/vmlinux.h
       - name: Check native build
