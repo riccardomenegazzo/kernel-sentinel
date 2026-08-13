@@ -25,6 +25,10 @@ impl ProcessTable {
         self.entries.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
     pub fn lineage(&self, pid: u32, max_depth: usize) -> Vec<ProcessIdentity> {
         let mut out = Vec::new();
         let mut current = pid;
