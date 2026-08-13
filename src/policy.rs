@@ -58,7 +58,11 @@ impl PolicySet {
     pub fn load(path: &Path) -> Result<Self> {
         let input = fs::read_to_string(path).context("unable to read policy YAML")?;
         let rules: Self = serde_yaml::from_str(&input).context("invalid policy YAML")?;
-        anyhow::ensure!(rules.version == 1, "unsupported policy version {}", rules.version);
+        anyhow::ensure!(
+            rules.version == 1,
+            "unsupported policy version {}",
+            rules.version
+        );
         Ok(rules)
     }
 }
