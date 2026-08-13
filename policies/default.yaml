@@ -1,0 +1,54 @@
+version: 1
+
+rules:
+  - id: KS-EXEC-001
+    name: Execute binary from temporary directory
+    severity: high
+    score: 75
+    description: Execution from /tmp is unusual for packaged workloads and deserves investigation.
+    tags: [execution, temporary-file]
+    match:
+      event: exec
+      executable_prefix: /tmp/
+
+  - id: KS-WEB-001
+    name: Web server spawned a shell
+    severity: critical
+    score: 95
+    description: A shell created by nginx can indicate command execution through a web-facing service.
+    tags: [execution, webserver]
+    match:
+      event: exec
+      parent_comm: nginx
+      executable_suffix: /sh
+
+  - id: KS-CONTAINER-001
+    name: Shell execution inside container
+    severity: medium
+    score: 45
+    description: Interactive shells are useful context in service-oriented containers.
+    tags: [container, execution]
+    match:
+      event: exec
+      container: true
+      executable_suffix: /sh
+
+  - id: KS-CRED-001
+    name: Setuid requested root
+    severity: high
+    score: 80
+    description: A process requested UID 0; unexpected privilege transitions should be investigated.
+    tags: [credentials]
+    match:
+      event: setuid
+      target_uid: 0
+
+  - id: KS-FILE-001
+    name: Access to shadow database
+    severity: high
+    score: 85
+    description: Opening /etc/shadow is security-sensitive outside expected account-management paths.
+    tags: [sensitive-file]
+    match:
+      event: file_open
+      path_exact: /etc/shadow

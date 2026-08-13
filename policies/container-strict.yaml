@@ -1,0 +1,24 @@
+version: 1
+
+rules:
+  - id: KS-C-EXEC-001
+    name: Temporary executable inside a container
+    severity: critical
+    score: 95
+    description: Executables created under /tmp inside an immutable workload deserve investigation.
+    tags: [container, execution]
+    match:
+      event: exec
+      container: true
+      executable_prefix: /tmp/
+
+  - id: KS-C-SHELL-001
+    name: Container service spawned shell
+    severity: high
+    score: 90
+    description: A service-originated shell can indicate unexpected command execution.
+    tags: [container, shell]
+    match:
+      event: exec
+      container: true
+      executable_suffix: /sh
