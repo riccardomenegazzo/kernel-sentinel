@@ -45,6 +45,7 @@ pub struct Match {
     pub executable_suffix: Option<String>,
     pub comm: Option<String>,
     pub parent_comm: Option<String>,
+    pub ancestor_comm: Option<String>,
     pub uid: Option<u32>,
     pub euid: Option<u32>,
     pub target_uid: Option<u32>,

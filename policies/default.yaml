@@ -22,6 +22,17 @@ rules:
       parent_comm: nginx
       executable_suffix: /sh
 
+  - id: KS-WEB-002
+    name: Downloader in web server process tree
+    severity: critical
+    score: 98
+    description: A downloader executing below a web-server ancestor can indicate a post-exploitation command chain.
+    tags: [execution, lineage, webserver]
+    match:
+      event: exec
+      ancestor_comm: nginx
+      executable_suffix: /curl
+
   - id: KS-CONTAINER-001
     name: Shell execution inside container
     severity: medium
