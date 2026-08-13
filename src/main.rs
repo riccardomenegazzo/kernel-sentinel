@@ -92,7 +92,7 @@ fn main() -> Result<()> {
             }
 
             for item in detector.evaluate(&event, &processes) {
-                println!("{}", serde_json::to_string(&item)?);
+                renderer.detection(&item)?;
             }
         }
     }
