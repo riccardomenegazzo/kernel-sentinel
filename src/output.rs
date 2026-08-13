@@ -20,7 +20,10 @@ impl Renderer {
     pub fn event(&self, event: &KernelEvent) -> Result<()> {
         match self.mode {
             OutputMode::Json => println!("{}", serde_json::to_string(event)?),
-            OutputMode::Pretty => println!("event={:?} pid={} comm={}", event.kind, event.tgid, event.comm),
+            OutputMode::Pretty => println!(
+                "event={:?} pid={} comm={}",
+                event.kind, event.tgid, event.comm
+            ),
         }
         Ok(())
     }

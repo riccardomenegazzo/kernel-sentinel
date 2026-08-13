@@ -18,6 +18,7 @@ use kernel_sentinel::{
 mod sentinel {
     include!(concat!(env!("OUT_DIR"), "/sentinel.skel.rs"));
 }
+
 use sentinel::SentinelSkelBuilder;
 
 #[derive(Debug, Parser)]
@@ -25,8 +26,10 @@ use sentinel::SentinelSkelBuilder;
 struct Cli {
     #[arg(short, long, default_value = "policies/default.yaml")]
     policy: PathBuf,
+
     #[arg(long, value_enum, default_value_t = OutputMode::Pretty)]
     output: OutputMode,
+
     #[arg(long)]
     verbose_events: bool,
 }
@@ -35,6 +38,7 @@ unsafe impl Plain for RawKernelEvent {}
 
 fn main() -> Result<()> {
     tracing_subscriber::fmt().init();
+
     let cli = Cli::parse();
     let policies = PolicySet::load(&cli.policy)
         .with_context(|| format!("failed to load {}", cli.policy.display()))?;
@@ -71,9 +75,11 @@ fn main() -> Result<()> {
             processes.enrich(&mut event);
             container::enrich_container(&mut event);
             processes.observe(&event);
+
             if cli.verbose_events {
                 renderer.event(&event)?;
             }
+
             for item in detector.evaluate(&event, &processes) {
                 println!("{}", serde_json::to_string(&item)?);
             }
