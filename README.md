@@ -70,13 +70,19 @@ Run in the default audit-only mode:
 sudo ./target/release/kernel-sentinel --policy policies/default.yaml
 ```
 
-Print every normalized event:
+Print every normalized event as well as detections:
 
 ```bash
 sudo ./target/release/kernel-sentinel --verbose-events
 ```
 
-Detections are emitted as newline-delimited JSON. The Rust core can be tested without a BPF-capable kernel:
+Terminal output is the default. For newline-delimited JSON suitable for `jq` or another collector:
+
+```bash
+sudo ./target/release/kernel-sentinel --output json
+```
+
+The Rust core can be tested without a BPF-capable kernel:
 
 ```bash
 cargo test --lib
@@ -94,20 +100,20 @@ The policy map is empty by default; there is no global deny mode. The narrow sco
 
 ## Rules
 
-Rules are deliberately small while the event schema settles:
+Rules can match the current event, direct parent and bounded process ancestry. For example:
 
 ```yaml
-- id: KS-WEB-001
-  name: Web server spawned a shell
+- id: KS-WEB-002
+  name: Downloader in web server process tree
   severity: critical
-  score: 95
+  score: 98
   match:
     event: exec
-    parent_comm: nginx
-    executable_suffix: /sh
+    ancestor_comm: nginx
+    executable_suffix: /curl
 ```
 
-The next meaningful step is bounded sequence state so related events can be evaluated as one chain rather than independent matches.
+This catches a downloader below an nginx process tree even when nginx is not the direct parent. The next meaningful step is bounded sequence state so related events can be evaluated as one chain rather than independent matches.
 
 ## Repository notes
 
@@ -122,7 +128,7 @@ The next meaningful step is bounded sequence state so related events can be eval
 - the credential event records an attempted `setuid`, not a committed transition;
 - PID reuse is not handled yet in the process table;
 - there is no fallback backend for kernels without BPF LSM;
-- rules are single-event matches;
+- ancestry-aware rules are still single-event matches rather than stateful event sequences;
 - kernel integration tests still need a dedicated VM matrix.
 
 ## License
