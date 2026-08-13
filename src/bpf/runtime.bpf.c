@@ -15,6 +15,7 @@ enum ks_event_kind {
     KS_EVENT_EXIT = 3,
     KS_EVENT_SETUID = 4,
     KS_EVENT_FILE_OPEN = 5,
+    KS_EVENT_POLICY_DENY = 6,
 };
 
 struct ks_event {
@@ -38,10 +39,22 @@ struct ks_event {
     char path[KS_PATH_LEN];
 };
 
+struct ks_enforcement_policy {
+    __u8 deny_tmp_exec;
+    __u8 reserved[7];
+};
+
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 1 << 24);
 } events SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 4096);
+    __type(key, __u64);
+    __type(value, struct ks_enforcement_policy);
+} enforcement SEC(".maps");
 
 static __always_inline __u64 read_pid_ns(struct task_struct *task)
 {
@@ -151,5 +164,33 @@ int BPF_PROG(audit_file_open, struct file *file, int ret)
         e->path[0] = '\0';
 
     bpf_ringbuf_submit(e, 0);
+    return 0;
+}
+
+SEC("lsm.s/bprm_check_security")
+int BPF_PROG(enforce_exec, struct linux_binprm *bprm, int ret)
+{
+    if (ret != 0)
+        return ret;
+
+    __u64 cgroup_id = bpf_get_current_cgroup_id();
+    struct ks_enforcement_policy *policy = bpf_map_lookup_elem(&enforcement, &cgroup_id);
+    if (!policy || !policy->deny_tmp_exec)
+        return 0;
+
+    char path[KS_PATH_LEN] = {};
+    if (bpf_d_path(&bprm->file->f_path, path, sizeof(path)) < 0)
+        return 0;
+
+    if (path[0] == '/' && path[1] == 't' && path[2] == 'm' && path[3] == 'p' && path[4] == '/') {
+        struct ks_event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+        if (e) {
+            fill_common(e, KS_EVENT_POLICY_DENY);
+            __builtin_memcpy(e->path, path, sizeof(e->path));
+            bpf_ringbuf_submit(e, 0);
+        }
+        return -1;
+    }
+
     return 0;
 }
