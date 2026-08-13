@@ -24,9 +24,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Install BPF toolchain
-        run: sudo apt-get update && sudo apt-get install -y clang llvm bpftool libelf-dev zlib1g-dev pkg-config
-      - name: Generate CO-RE header
+      - name: Install native dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang llvm linux-tools-common libelf-dev zlib1g-dev pkg-config
+      - name: Generate header
         run: make bootstrap
-      - name: Compile BPF-enabled agent
+      - name: Check native build
         run: cargo check --features bpf
