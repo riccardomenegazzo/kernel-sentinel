@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use libbpf_rs::skel::{OpenSkel, Skel, SkelBuilder};
-use libbpf_rs::RingBufferBuilder;
+use libbpf_rs::{MapCore, MapFlags, RingBufferBuilder};
 use std::{mem::MaybeUninit, path::PathBuf, sync::mpsc, time::Duration};
 use tracing::{info, warn};
 
@@ -31,6 +31,9 @@ struct Cli {
 
     #[arg(long)]
     verbose_events: bool,
+
+    #[arg(long, value_name = "CGROUP_ID")]
+    enforce_cgroup: Option<u64>,
 }
 
 fn main() -> Result<()> {
@@ -45,6 +48,17 @@ fn main() -> Result<()> {
     let mut open_object = MaybeUninit::uninit();
     let open_skel = builder.open(&mut open_object)?;
     let mut skel = open_skel.load()?;
+
+    if let Some(cgroup_id) = cli.enforce_cgroup {
+        let key = cgroup_id.to_ne_bytes();
+        let policy = [1_u8, 0, 0, 0, 0, 0, 0, 0];
+        skel.maps
+            .enforcement
+            .update(&key, &policy, MapFlags::ANY)
+            .context("failed to configure cgroup policy")?;
+        info!(cgroup_id, "execution policy enabled");
+    }
+
     skel.attach()?;
 
     let callback_tx = tx.clone();
