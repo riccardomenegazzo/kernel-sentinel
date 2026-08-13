@@ -25,6 +25,10 @@ impl ProcessTable {
         self.entries.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
     pub fn lineage(&self, pid: u32, max_depth: usize) -> Vec<ProcessIdentity> {
         let mut out = Vec::new();
         let mut current = pid;
@@ -130,6 +134,9 @@ mod tests {
         table.observe(&event(11, 10));
 
         let chain = table.lineage(11, 8);
-        assert_eq!(chain.iter().map(|p| p.pid).collect::<Vec<_>>(), vec![11, 10, 1]);
+        assert_eq!(
+            chain.iter().map(|p| p.pid).collect::<Vec<_>>(),
+            vec![11, 10, 1]
+        );
     }
 }

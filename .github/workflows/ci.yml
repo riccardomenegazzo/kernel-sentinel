@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Install native dependencies
+        run: sudo apt-get update && sudo apt-get install -y libelf-dev zlib1g-dev pkg-config
+      - run: cargo fmt --all -- --check
+      - run: cargo test --lib
+      - run: cargo clippy --lib -- -D warnings
+
+  bpf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install native dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang llvm linux-tools-generic linux-tools-common libelf-dev zlib1g-dev pkg-config
+      - name: Generate header
+        run: |
+          TOOL=$(ls /usr/lib/linux-tools-*/bpftool 2>/dev/null | head -n1)
+          test -n "$TOOL"
+          "$TOOL" btf dump file /sys/kernel/btf/vmlinux format c > src/bpf/vmlinux.h
+      - name: Check native build
+        run: cargo check --features bpf

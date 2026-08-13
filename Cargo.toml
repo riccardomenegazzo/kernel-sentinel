@@ -3,16 +3,18 @@ name = "kernel-sentinel"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
-description = "Experimental Linux runtime security agent using Rust, eBPF CO-RE, and BPF LSM."
+description = "Linux event monitoring experiments with Rust and eBPF CO-RE."
 repository = "https://github.com/riccardomenegazzo/kernel-sentinel"
-keywords = ["ebpf", "linux", "security", "runtime-security", "rust"]
-categories = ["command-line-utilities", "os::linux-apis"]
+
+[features]
+default = []
+bpf = ["dep:libbpf-rs"]
 
 [dependencies]
 anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.5", features = ["derive"] }
-libbpf-rs = "0.26.2"
+libbpf-rs = { version = "0.26.2", optional = true }
 plain = "0.2"
 procfs = "0.17"
 serde = { version = "1", features = ["derive"] }
@@ -23,6 +25,11 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [build-dependencies]
 libbpf-cargo = "0.26.2"
+
+[[bin]]
+name = "kernel-sentinel"
+path = "src/main.rs"
+required-features = ["bpf"]
 
 [profile.release]
 lto = "thin"

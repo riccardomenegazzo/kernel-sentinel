@@ -1,11 +1,12 @@
 use chrono::{DateTime, Utc};
+use plain::Plain;
 use serde::{Deserialize, Serialize};
 
 pub const COMM_LEN: usize = 16;
 pub const PATH_LEN: usize = 256;
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 pub struct RawKernelEvent {
     pub timestamp_ns: u64,
     pub cgroup_id: u64,
@@ -25,6 +26,33 @@ pub struct RawKernelEvent {
     pub reserved: u32,
     pub comm: [u8; COMM_LEN],
     pub path: [u8; PATH_LEN],
+}
+
+unsafe impl Plain for RawKernelEvent {}
+
+impl Default for RawKernelEvent {
+    fn default() -> Self {
+        Self {
+            timestamp_ns: 0,
+            cgroup_id: 0,
+            pid_ns: 0,
+            mnt_ns: 0,
+            kind: 0,
+            pid: 0,
+            tgid: 0,
+            ppid: 0,
+            uid: 0,
+            gid: 0,
+            euid: 0,
+            egid: 0,
+            exit_code: 0,
+            flags: 0,
+            target_uid: 0,
+            reserved: 0,
+            comm: [0; COMM_LEN],
+            path: [0; PATH_LEN],
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -126,5 +154,15 @@ impl From<RawKernelEvent> for KernelEvent {
                 cgroup_path: None,
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn raw_event_layout_matches_kernel_abi() {
+        assert_eq!(std::mem::size_of::<RawKernelEvent>(), 352);
     }
 }
