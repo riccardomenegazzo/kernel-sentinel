@@ -2,10 +2,16 @@ use libbpf_cargo::SkeletonBuilder;
 use std::{env, path::PathBuf};
 
 fn main() {
-    let out = PathBuf::from(env::var_os("OUT_DIR").unwrap()).join("sentinel.skel.rs");
+    if env::var_os("CARGO_FEATURE_BPF").is_none() {
+        return;
+    }
+
+    let out = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR must be set"))
+        .join("sentinel.skel.rs");
+
     SkeletonBuilder::new()
         .source("src/bpf/sentinel.bpf.c")
         .clang_args(["-Isrc/bpf"])
         .build_and_generate(&out)
-        .unwrap();
+        .expect("failed to build eBPF skeleton");
 }
