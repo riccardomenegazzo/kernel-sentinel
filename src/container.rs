@@ -30,7 +30,7 @@ pub fn enrich_container(event: &mut KernelEvent) {
     };
 
     let id = cgroup_path
-        .split(|c: char| matches!(c, '/' | '-' | '.'))
+        .split(['/', '-', '.'])
         .filter(|part| part.len() >= 12 && part.chars().all(|c| c.is_ascii_hexdigit()))
         .max_by_key(|part| part.len())
         .map(str::to_owned);
