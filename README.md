@@ -49,11 +49,17 @@ Typical Debian/Ubuntu dependencies:
 sudo apt install clang llvm bpftool libelf-dev zlib1g-dev pkg-config
 ```
 
-Generate the CO-RE header and build:
+Generate the CO-RE header and build the BPF-enabled binary:
 
 ```bash
 make bootstrap
-cargo build --release
+cargo build --release --features bpf
+```
+
+or simply:
+
+```bash
+make release
 ```
 
 `src/bpf/vmlinux.h` is generated from the running kernel and is not committed.
@@ -70,7 +76,11 @@ Print every normalized event:
 sudo ./target/release/kernel-sentinel --verbose-events
 ```
 
-JSON detections are emitted one per line, which makes it easy to pipe the agent into `jq` or another collector.
+Detections are emitted as newline-delimited JSON. The Rust core can be tested without a BPF-capable kernel:
+
+```bash
+cargo test --lib
+```
 
 ## Rules
 
