@@ -8,12 +8,14 @@ fn main() {
 
     println!("cargo:rerun-if-changed=src/bpf/process.bpf.c");
 
-    let out = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR must be set"))
-        .join("process.skel.rs");
+    let out_dir = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR must be set"));
+    let object = out_dir.join("sentinel.o");
+    let skeleton = out_dir.join("sentinel.skel.rs");
 
     SkeletonBuilder::new()
         .source("src/bpf/process.bpf.c")
+        .obj(&object)
         .clang_args(["-Isrc/bpf"])
-        .build_and_generate(&out)
+        .build_and_generate(&skeleton)
         .expect("failed to build eBPF skeleton");
 }
