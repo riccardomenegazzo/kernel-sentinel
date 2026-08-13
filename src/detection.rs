@@ -113,14 +113,18 @@ fn matches_rule(m: &Match, e: &KernelEvent) -> bool {
     {
         return false;
     }
-    if m.parent_executable_suffix.as_deref().is_some_and(|v| {
-        !e.parent_exe.as_deref().unwrap_or("").ends_with(v)
-    }) {
+    if m.parent_executable_suffix
+        .as_deref()
+        .is_some_and(|v| !e.parent_exe.as_deref().unwrap_or("").ends_with(v))
+    {
         return false;
     }
 
     let path = e.path.as_deref().unwrap_or("");
-    if m.path_prefix.as_deref().is_some_and(|v| !path.starts_with(v)) {
+    if m.path_prefix
+        .as_deref()
+        .is_some_and(|v| !path.starts_with(v))
+    {
         return false;
     }
     if m.path_exact.as_deref().is_some_and(|v| path != v) {
