@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use plain::Plain;
 use serde::{Deserialize, Serialize};
 
 pub const COMM_LEN: usize = 16;
@@ -26,6 +27,8 @@ pub struct RawKernelEvent {
     pub comm: [u8; COMM_LEN],
     pub path: [u8; PATH_LEN],
 }
+
+unsafe impl Plain for RawKernelEvent {}
 
 impl Default for RawKernelEvent {
     fn default() -> Self {
