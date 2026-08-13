@@ -2,7 +2,6 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use libbpf_rs::skel::{OpenSkel, Skel, SkelBuilder};
 use libbpf_rs::RingBufferBuilder;
-use plain::Plain;
 use std::{mem::MaybeUninit, path::PathBuf, sync::mpsc, time::Duration};
 use tracing::{info, warn};
 
@@ -33,8 +32,6 @@ struct Cli {
     #[arg(long)]
     verbose_events: bool,
 }
-
-unsafe impl Plain for RawKernelEvent {}
 
 fn main() -> Result<()> {
     tracing_subscriber::fmt().init();
