@@ -54,7 +54,7 @@ impl Detector {
         self.policies
             .rules
             .iter()
-            .filter(|rule| matches_rule(&rule.r#match, event))
+            .filter(|rule| matches_rule(&rule.r#match, event, processes))
             .map(|rule| detection(rule, event, processes))
             .collect()
     }
@@ -74,7 +74,7 @@ fn detection(rule: &Rule, event: &KernelEvent, processes: &ProcessTable) -> Dete
     }
 }
 
-fn matches_rule(m: &Match, e: &KernelEvent) -> bool {
+fn matches_rule(m: &Match, e: &KernelEvent, processes: &ProcessTable) -> bool {
     if m.event.is_some_and(|v| v != e.kind) {
         return false;
     }
@@ -98,6 +98,15 @@ fn matches_rule(m: &Match, e: &KernelEvent) -> bool {
         .is_some_and(|v| e.parent_comm.as_deref() != Some(v))
     {
         return false;
+    }
+    if let Some(ancestor) = m.ancestor_comm.as_deref() {
+        let found = processes
+            .lineage(e.ppid, 8)
+            .iter()
+            .any(|process| process.comm == ancestor);
+        if !found {
+            return false;
+        }
     }
 
     let executable = e.exe.as_deref().or(e.path.as_deref()).unwrap_or("");
@@ -180,7 +189,7 @@ mod tests {
             container: Some(true),
             ..Default::default()
         };
-        assert!(matches_rule(&m, &base()));
+        assert!(matches_rule(&m, &base(), &ProcessTable::default()));
     }
 
     #[test]
@@ -189,6 +198,47 @@ mod tests {
             uid: Some(1000),
             ..Default::default()
         };
-        assert!(!matches_rule(&m, &base()));
+        assert!(!matches_rule(&m, &base(), &ProcessTable::default()));
+    }
+
+    #[test]
+    fn matches_ancestor_beyond_direct_parent() {
+        let mut processes = ProcessTable::default();
+
+        let mut nginx = base();
+        nginx.tgid = 7;
+        nginx.pid = 7;
+        nginx.ppid = 1;
+        nginx.comm = "nginx".into();
+        nginx.exe = Some("/usr/sbin/nginx".into());
+        nginx.path = nginx.exe.clone();
+        processes.observe(&nginx);
+
+        let mut shell = base();
+        shell.tgid = 9;
+        shell.pid = 9;
+        shell.ppid = 7;
+        shell.comm = "sh".into();
+        shell.exe = Some("/bin/sh".into());
+        shell.path = shell.exe.clone();
+        processes.observe(&shell);
+
+        let mut curl = base();
+        curl.tgid = 10;
+        curl.pid = 10;
+        curl.ppid = 9;
+        curl.comm = "curl".into();
+        curl.parent_comm = Some("sh".into());
+        curl.exe = Some("/usr/bin/curl".into());
+        curl.path = curl.exe.clone();
+
+        let m = Match {
+            event: Some(EventKind::Exec),
+            executable_suffix: Some("/curl".into()),
+            ancestor_comm: Some("nginx".into()),
+            ..Default::default()
+        };
+
+        assert!(matches_rule(&m, &curl, &processes));
     }
 }
