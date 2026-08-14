@@ -141,6 +141,9 @@ func (c *Controller) RunOnce(ctx context.Context) (Result, error) {
 	if c.Metrics == nil || c.Cluster == nil {
 		return Result{}, fmt.Errorf("metrics and cluster providers are required")
 	}
+	if cfg.Execute && c.Audit == nil {
+		return Result{}, fmt.Errorf("autonomous execution requires a durable auditor")
+	}
 	now := time.Now().UTC()
 	if c.Now != nil {
 		now = c.Now().UTC()
@@ -299,12 +302,17 @@ func (c *Controller) RunOnce(ctx context.Context) (Result, error) {
 		return res, nil
 	}
 
-	audit(c.Audit, incident, "execute_rollback", plan)
+	if err := auditRequired(c.Audit, incident, "execute_rollback", plan); err != nil {
+		return res, fmt.Errorf("persist pre-mutation audit: %w", err)
+	}
 	c.lastAction = now
 	if err := c.Cluster.PatchImages(ctx, plan, plan.PreviousImages, false); err != nil {
 		return res, fmt.Errorf("execute rollback: %w", err)
 	}
 	res.Executed = true
+	if err := auditRequired(c.Audit, incident, "rollback_applied", plan); err != nil {
+		return c.compensate(ctx, cfg, res, plan, "post-mutation audit persistence failed: "+err.Error())
+	}
 	res.Verdict = "verifying"
 	res.Reason = "rollback applied; verifying rollout and SLI"
 	rollCtx, cancel := context.WithTimeout(ctx, cfg.RolloutTimeout)
@@ -398,4 +406,11 @@ func audit(a Auditor, id, action string, p any) {
 	if a != nil {
 		_ = a.Append(id, action, p)
 	}
+}
+
+func auditRequired(a Auditor, id, action string, p any) error {
+	if a == nil {
+		return fmt.Errorf("auditor is not configured")
+	}
+	return a.Append(id, action, p)
 }
