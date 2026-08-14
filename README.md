@@ -115,6 +115,27 @@ Rules can match the current event, direct parent and bounded process ancestry. F
 
 This catches a downloader below an nginx process tree even when nginx is not the direct parent. The next meaningful step is bounded sequence state so related events can be evaluated as one chain rather than independent matches.
 
+## Sentinel Cortex: reliability reasoning layer
+
+The repository also contains an experimental SRE control plane in [`cortex/`](cortex/). It consumes Kernel Sentinel JSON detections, correlates evidence, challenges its own hypothesis, evaluates the affected service's SLO/error budget, and emits a **proof-carrying remediation** rather than jumping directly from an alert to a production mutation.
+
+The prototype deliberately separates probabilistic reasoning from deterministic safety policy. Even when all guardrails pass, no live executor is registered by default.
+
+Try the deterministic incident scenario:
+
+```bash
+cd cortex
+go test ./...
+go run ./cmd/cortex \
+  --detections testdata/web-compromise.jsonl \
+  --service workspace-runtime \
+  --slo-target 0.999 \
+  --good 99850 \
+  --total 100000
+```
+
+See [`docs/cortex.md`](docs/cortex.md) for the architecture and [`docs/interview-demo.md`](docs/interview-demo.md) for a five-minute walkthrough.
+
 ## Repository notes
 
 - [`docs/architecture.md`](docs/architecture.md) describes the kernel/userspace split.
