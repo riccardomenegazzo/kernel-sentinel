@@ -1,0 +1,11 @@
+Sentinel Cortex has been installed in {{ .Release.Namespace }}.
+
+Status endpoint:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "sentinel-cortex.fullname" . }} 8080:{{ .Values.service.port }}
+  curl http://127.0.0.1:8080/api/v1/status
+
+Autonomous mutation is disabled unless BOTH values are set:
+  autonomy.execute=true
+  autonomy.allowMutations=true
+
+Execution also requires audit.existingSecret to contain a >=32 byte HMAC key.

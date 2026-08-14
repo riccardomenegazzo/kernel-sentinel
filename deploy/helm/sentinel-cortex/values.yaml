@@ -1,0 +1,80 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/riccardomenegazzo/kernel-sentinel-cortex-agent
+  tag: rc
+  pullPolicy: IfNotPresent
+
+target:
+  namespace: default
+  deployment: example
+  service: example
+
+slo:
+  target: 0.999
+  errorRateQuery: 'sum(rate(http_requests_total{service="example",status=~"5.."}[5m])) / clamp_min(sum(rate(http_requests_total{service="example"}[5m])), 1)'
+  p95Query: ''
+
+prometheus:
+  url: http://prometheus-operated.monitoring.svc:9090
+  bearerTokenSecret: ''
+  bearerTokenKey: token
+
+tempo:
+  url: ''
+  traceQuery: ''
+  bearerTokenSecret: ''
+  bearerTokenKey: token
+
+loki:
+  url: ''
+  logQuery: ''
+  bearerTokenSecret: ''
+  bearerTokenKey: token
+
+autonomy:
+  execute: false
+  allowMutations: false
+  minConfidence: 0.90
+  minReadyReplicas: 2
+  requiredBadCycles: 2
+  maxRevisionAgeSeconds: 1800
+  cooldownSeconds: 600
+  rolloutTimeoutSeconds: 120
+  verifyDelaySeconds: 30
+
+serviceAccount:
+  create: true
+  name: ''
+
+audit:
+  path: /var/lib/cortex/audit.jsonl
+  existingSecret: ''
+  existingSecretKey: hmac
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClass: ''
+
+service:
+  port: 8080
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  capabilities:
+    drop: ["ALL"]

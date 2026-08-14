@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sentinel-cortex.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+data:
+  config.json: |
+    {
+      "service": {{ .Values.target.service | quote }},
+      "namespace": {{ .Values.target.namespace | quote }},
+      "deployment": {{ .Values.target.deployment | quote }},
+      "slo_target": {{ .Values.slo.target }},
+      "error_rate_query": {{ .Values.slo.errorRateQuery | quote }},
+      "p95_query": {{ .Values.slo.p95Query | quote }},
+      "trace_query": {{ .Values.tempo.traceQuery | quote }},
+      "log_query": {{ .Values.loki.logQuery | quote }},
+      "min_confidence": {{ .Values.autonomy.minConfidence }},
+      "min_ready_replicas": {{ .Values.autonomy.minReadyReplicas }},
+      "required_bad_cycles": {{ .Values.autonomy.requiredBadCycles }},
+      "execute": {{ .Values.autonomy.execute }},
+      "prometheus_url": {{ .Values.prometheus.url | quote }},
+      {{- if .Values.prometheus.bearerTokenSecret }}
+      "prometheus_bearer_token_env": "PROMETHEUS_TOKEN",
+      {{- end }}
+      "tempo_url": {{ .Values.tempo.url | quote }},
+      {{- if .Values.tempo.bearerTokenSecret }}
+      "tempo_bearer_token_env": "TEMPO_TOKEN",
+      {{- end }}
+      "loki_url": {{ .Values.loki.url | quote }},
+      {{- if .Values.loki.bearerTokenSecret }}
+      "loki_bearer_token_env": "LOKI_TOKEN",
+      {{- end }}
+      "audit_path": {{ .Values.audit.path | quote }},
+      "audit_hmac_env": "CORTEX_AUDIT_HMAC",
+      "poll_seconds": 30,
+      "rollout_timeout_seconds": {{ .Values.autonomy.rolloutTimeoutSeconds }},
+      "verify_delay_seconds": {{ .Values.autonomy.verifyDelaySeconds }},
+      "max_revision_age_seconds": {{ .Values.autonomy.maxRevisionAgeSeconds }},
+      "cooldown_seconds": {{ .Values.autonomy.cooldownSeconds }}
+    }

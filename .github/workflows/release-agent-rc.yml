@@ -1,0 +1,142 @@
+name: Release Autonomous Agent RC
+
+on:
+  push:
+    branches:
+      - agent/autonomous-sre-production
+    paths:
+      - "cortex/**"
+      - "deploy/**"
+      - "Dockerfile.cortex-agent"
+      - ".github/workflows/release-agent-rc.yml"
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+      - uses: azure/setup-helm@v4
+
+      - id: meta
+        shell: bash
+        run: echo "tag=v0.1.0-rc.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+      - name: Validate Go
+        working-directory: cortex
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test -race ./...
+
+      - name: Validate Helm chart
+        run: |
+          helm lint deploy/helm/sentinel-cortex
+          helm template cortex deploy/helm/sentinel-cortex \
+            --namespace cortex-system \
+            --set target.namespace=production \
+            --set target.deployment=checkout \
+            --set target.service=checkout >/tmp/cortex.yaml
+
+      - name: Build release archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist .release
+          mkdir -p dist .release
+
+          build_cortex() {
+            local os="$1" arch="$2"
+            local suffix=""
+            if [ "$os" = windows ]; then suffix=".exe"; fi
+            local dir=".release/cortex-${os}-${arch}"
+            mkdir -p "$dir"
+            (cd cortex && CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -ldflags="-s -w" -o "../$dir/cortex${suffix}" ./cmd/cortex)
+            cp LICENSE "$dir/"
+            cp cortex/README.md "$dir/README.md"
+            if [ "$os" = windows ]; then
+              (cd .release && zip -qr "../dist/cortex-${os}-${arch}.zip" "cortex-${os}-${arch}")
+            else
+              tar -C .release -czf "dist/cortex-${os}-${arch}.tar.gz" "cortex-${os}-${arch}"
+            fi
+          }
+
+          build_agent() {
+            local arch="$1"
+            local dir=".release/cortex-agent-linux-${arch}"
+            mkdir -p "$dir"
+            (cd cortex && CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -ldflags="-s -w" -o "../$dir/cortex-agent" ./cmd/cortex-agent)
+            cp LICENSE "$dir/"
+            cp deploy/cortex-agent/config.example.json "$dir/"
+            cp docs/release-package.md "$dir/README.md"
+            tar -C .release -czf "dist/cortex-agent-linux-${arch}.tar.gz" "cortex-agent-linux-${arch}"
+          }
+
+          build_cortex linux amd64
+          build_cortex linux arm64
+          build_cortex darwin amd64
+          build_cortex darwin arm64
+          build_cortex windows amd64
+          build_agent amd64
+          build_agent arm64
+
+          helm package deploy/helm/sentinel-cortex --destination dist
+          (cd dist && sha256sum * > SHA256SUMS)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-assets
+          path: dist/*
+          if-no-files-found: error
+
+  image:
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.cortex-agent
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: true
+          sbom: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/kernel-sentinel-cortex-agent:${{ needs.prepare.outputs.tag }}
+            ghcr.io/${{ github.repository_owner }}/kernel-sentinel-cortex-agent:rc
+
+  publish:
+    needs: [prepare, image]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-assets
+          path: dist
+      - name: Publish prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          gh release create "$TAG" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "Sentinel Cortex $TAG" \
+            --notes "Autonomous SRE release candidate. Includes standalone Cortex binaries, Linux cortex-agent packages, a Helm chart, SHA-256 checksums, and a multi-arch GHCR image. Autonomous mutation remains double-opt-in and requires durable HMAC-chained audit logging."

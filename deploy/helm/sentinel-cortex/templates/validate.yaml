@@ -1,0 +1,11 @@
+{{- if .Values.autonomy.execute }}
+  {{- if not .Values.autonomy.allowMutations }}
+    {{- fail "autonomy.execute=true requires autonomy.allowMutations=true" }}
+  {{- end }}
+  {{- if not .Values.audit.existingSecret }}
+    {{- fail "autonomous execution requires audit.existingSecret" }}
+  {{- end }}
+  {{- if not .Values.audit.persistence.enabled }}
+    {{- fail "autonomous execution requires persistent audit storage" }}
+  {{- end }}
+{{- end }}

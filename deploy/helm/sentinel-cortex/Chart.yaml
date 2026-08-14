@@ -1,0 +1,6 @@
+apiVersion: v2
+name: sentinel-cortex
+description: Guarded autonomous SRE agent for Kubernetes reliability remediation
+type: application
+version: 0.1.0
+appVersion: "0.1.0-rc"
