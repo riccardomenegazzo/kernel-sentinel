@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "sentinel-cortex.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "sentinel-cortex.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "sentinel-cortex.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      serviceAccountName: {{ include "sentinel-cortex.serviceAccountName" . }}
+      securityContext:
+{{ toYaml .Values.podSecurityContext | indent 8 }}
+      containers:
+        - name: cortex-agent
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["--config", "/etc/cortex/config.json", "--listen", ":8080"]
+          securityContext:
+{{ toYaml .Values.containerSecurityContext | indent 12 }}
+          env:
+            - name: CORTEX_ALLOW_AUTONOMOUS
+              value: {{ .Values.autonomy.allowMutations | quote }}
+            {{- if .Values.audit.existingSecret }}
+            - name: CORTEX_AUDIT_HMAC
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.audit.existingSecret }}
+                  key: {{ .Values.audit.existingSecretKey }}
+            {{- end }}
+            {{- if .Values.prometheus.bearerTokenSecret }}
+            - name: PROMETHEUS_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.prometheus.bearerTokenSecret }}
+                  key: {{ .Values.prometheus.bearerTokenKey }}
+            {{- end }}
+            {{- if .Values.tempo.bearerTokenSecret }}
+            - name: TEMPO_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.tempo.bearerTokenSecret }}
+                  key: {{ .Values.tempo.bearerTokenKey }}
+            {{- end }}
+            {{- if .Values.loki.bearerTokenSecret }}
+            - name: LOKI_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.loki.bearerTokenSecret }}
+                  key: {{ .Values.loki.bearerTokenKey }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet: {path: /readyz, port: http}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/cortex
+              readOnly: true
+            - name: audit
+              mountPath: /var/lib/cortex
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "sentinel-cortex.fullname" . }}
+        - name: audit
+          {{- if .Values.audit.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "sentinel-cortex.fullname" . }}-audit
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

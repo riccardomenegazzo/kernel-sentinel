@@ -1,0 +1,13 @@
+FROM --platform=$BUILDPLATFORM golang:1.23-bookworm AS build
+ARG TARGETOS
+ARG TARGETARCH
+WORKDIR /src
+COPY cortex/ ./cortex/
+RUN cd cortex && go test ./...
+RUN cd cortex && CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/cortex-agent ./cmd/cortex-agent
+
+FROM gcr.io/distroless/static-debian12:nonroot
+COPY --from=build /out/cortex-agent /usr/local/bin/cortex-agent
+USER nonroot:nonroot
+EXPOSE 8080
+ENTRYPOINT ["/usr/local/bin/cortex-agent"]
