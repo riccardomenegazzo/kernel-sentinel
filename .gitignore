@@ -1,4 +1,6 @@
 /target
+/bin
+/dist
 src/bpf/vmlinux.h
 *.log
 .DS_Store

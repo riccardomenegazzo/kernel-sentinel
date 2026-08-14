@@ -1,20 +1,43 @@
-.PHONY: bootstrap build release test fmt clippy
+GO ?= go
+CARGO ?= cargo
+
+.PHONY: bootstrap build release test test-rust cortex-test cortex-build demo doctor fmt clippy check clean
 
 bootstrap:
-	@test -r /sys/kernel/btf/vmlinux
-	bpftool btf dump file /sys/kernel/btf/vmlinux format c > src/bpf/vmlinux.h
+	@./scripts/bootstrap.sh
 
 build: bootstrap
-	cargo build --features bpf
+	$(CARGO) build --features bpf
 
 release: bootstrap
-	cargo build --release --features bpf
+	$(CARGO) build --release --features bpf
 
-test:
-	cargo test --lib
+test: test-rust cortex-test
+
+test-rust:
+	$(CARGO) test --lib
+
+cortex-test:
+	cd cortex && $(GO) test ./...
+
+cortex-build:
+	@mkdir -p bin
+	cd cortex && $(GO) build -trimpath -o ../bin/cortex ./cmd/cortex
+
+demo:
+	@./scripts/demo-cortex.sh
+
+doctor:
+	@./scripts/doctor.sh
 
 fmt:
-	cargo fmt --all -- --check
+	$(CARGO) fmt --all -- --check
 
 clippy:
-	cargo clippy --lib -- -D warnings
+	$(CARGO) clippy --lib -- -D warnings
+
+check: fmt clippy test
+
+clean:
+	$(CARGO) clean
+	rm -rf bin dist
