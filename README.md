@@ -1,127 +1,22 @@
 # kernel-sentinel
 
-Linux runtime monitoring experiments with Rust, eBPF CO-RE and BPF LSM.
+Kernel Sentinel is a Linux runtime sensor written in Rust/eBPF plus **Sentinel Cortex**, an SRE-oriented reliability agent that correlates runtime evidence, evaluates SLO/error-budget state and produces proof-carrying remediation plans.
 
-The current version collects process lifecycle and credential events in the kernel, sends them to a Rust userspace agent, enriches them with `/proc` and cgroup context, keeps a process ancestry table and evaluates a small YAML rule set.
+The project is designed so that the probabilistic reasoning layer can investigate and propose while deterministic policy controls whether a production action is even eligible to run.
 
-This is intentionally a research prototype. I want the kernel side to stay small and predictable while most state, parsing and rule logic lives in Rust.
+## 60-second demo
 
-## Current event path
-
-```text
-sched tracepoints / file_open LSM
-              |
-           ringbuf
-              |
-              v
-          Rust agent
-              |
-     +--------+--------+
-     |                 |
- process graph     cgroup context
-     |                 |
-     +--------+--------+
-              |
-          YAML rules
-              |
-        JSON / terminal
-```
-
-Currently instrumented:
-
-- successful process execution
-- fork and exit
-- `setuid(2)` attempts
-- effective uid/gid from task credentials
-- PID and mount namespace identifiers
-- cgroup id
-- file opens through a sleepable BPF LSM hook
-
-The userspace side adds executable/cmdline information from `/proc`, basic Docker/containerd/Podman/Kubernetes cgroup recognition and parent-process context.
-
-## Build
-
-The project expects Linux with BTF exposed at `/sys/kernel/btf/vmlinux`. The LSM hooks also need BPF LSM enabled.
-
-Typical Debian/Ubuntu dependencies:
+You can test Cortex without root, eBPF or Kubernetes. You only need Go 1.22+:
 
 ```bash
-sudo apt install clang llvm bpftool libelf-dev zlib1g-dev pkg-config
+git clone https://github.com/riccardomenegazzo/kernel-sentinel.git
+cd kernel-sentinel
+make demo
 ```
 
-Generate the CO-RE header and build the BPF-enabled binary:
+The demo replays a deterministic incident where a downloader appears inside an nginx process tree and is followed by sensitive credential access. Cortex correlates the evidence, challenges the hypothesis, computes the SLO burn and emits a reversible remediation plan.
 
-```bash
-make bootstrap
-cargo build --release --features bpf
-```
-
-or simply:
-
-```bash
-make release
-```
-
-`src/bpf/vmlinux.h` is generated from the running kernel and is not committed.
-
-Run in the default audit-only mode:
-
-```bash
-sudo ./target/release/kernel-sentinel --policy policies/default.yaml
-```
-
-Print every normalized event as well as detections:
-
-```bash
-sudo ./target/release/kernel-sentinel --verbose-events
-```
-
-Terminal output is the default. For newline-delimited JSON suitable for `jq` or another collector:
-
-```bash
-sudo ./target/release/kernel-sentinel --output json
-```
-
-The Rust core can be tested without a BPF-capable kernel:
-
-```bash
-cargo test --lib
-```
-
-## Policy mode
-
-The runtime stays audit-only unless an explicit cgroup is selected. The current prevention experiment rejects execution below `/tmp` only for that cgroup:
-
-```bash
-sudo ./target/release/kernel-sentinel --enforce-cgroup <CGROUP_ID>
-```
-
-The policy map is empty by default; there is no global deny mode. The narrow scope is deliberate because mistakes at an LSM decision point are much more expensive than mistakes in a userspace detection rule.
-
-## Rules
-
-Rules can match the current event, direct parent and bounded process ancestry. For example:
-
-```yaml
-- id: KS-WEB-002
-  name: Downloader in web server process tree
-  severity: critical
-  score: 98
-  match:
-    event: exec
-    ancestor_comm: nginx
-    executable_suffix: /curl
-```
-
-This catches a downloader below an nginx process tree even when nginx is not the direct parent. The next meaningful step is bounded sequence state so related events can be evaluated as one chain rather than independent matches.
-
-## Sentinel Cortex: reliability reasoning layer
-
-The repository also contains an experimental SRE control plane in [`cortex/`](cortex/). It consumes Kernel Sentinel JSON detections, correlates evidence, challenges its own hypothesis, evaluates the affected service's SLO/error budget, and emits a **proof-carrying remediation** rather than jumping directly from an alert to a production mutation.
-
-The prototype deliberately separates probabilistic reasoning from deterministic safety policy. Even when all guardrails pass, no live executor is registered by default.
-
-Try the deterministic incident scenario:
+If you do not have `make`, run:
 
 ```bash
 cd cortex
@@ -134,22 +29,139 @@ go run ./cmd/cortex \
   --total 100000
 ```
 
-See [`docs/cortex.md`](docs/cortex.md) for the architecture and [`docs/interview-demo.md`](docs/interview-demo.md) for a five-minute walkthrough.
+See [`docs/quickstart.md`](docs/quickstart.md) for platform-specific setup and the live Linux sensor workflow.
 
-## Repository notes
+## Architecture
 
-- [`docs/architecture.md`](docs/architecture.md) describes the kernel/userspace split.
-- [`docs/kernel-hooks.md`](docs/kernel-hooks.md) records why each observation point was chosen.
-- [`docs/performance.md`](docs/performance.md) defines the benchmark methodology; no invented numbers are published.
-- [`docs/roadmap.md`](docs/roadmap.md) tracks correctness and compatibility work.
+```text
+Linux kernel                         Reliability control plane
+
+tracepoints / BPF LSM
+        |
+     ringbuf
+        |
+        v
+  Rust sensor ---- JSONL evidence ----> Sentinel Cortex
+                                      /      |       \
+                              investigator  SLO    governor
+                                   |         |        |
+                                   +---------+--------+
+                                             |
+                                  proof-carrying remediation
+                                             |
+                               prepare -> verify -> rollback
+```
+
+The current sensor collects process lifecycle, credential and file-open events, enriches them with `/proc`, cgroup/container context and process ancestry, and evaluates YAML policies.
+
+Cortex consumes detections and produces a structured incident decision containing:
+
+- a root-cause hypothesis with confidence;
+- supporting evidence and explicit falsifiers;
+- alternative explanations;
+- SLO/error-budget state;
+- a scoped remediation proposal;
+- preconditions, verification steps and rollback;
+- safety constraints and shortcuts the agent deliberately refused to take.
+
+## Build Cortex
+
+```bash
+make cortex-build
+./bin/cortex \
+  --detections cortex/testdata/web-compromise.jsonl \
+  --service workspace-runtime \
+  --slo-target 0.999 \
+  --good 99850 \
+  --total 100000
+```
+
+Tagged releases automatically build Cortex binaries for Linux, macOS and Windows on amd64/arm64 where supported.
+
+## Build the live eBPF sensor
+
+The kernel sensor requires Linux with BTF exposed at `/sys/kernel/btf/vmlinux`. BPF LSM hooks also require BPF LSM support.
+
+Typical Debian/Ubuntu dependencies:
+
+```bash
+sudo apt install clang llvm bpftool libelf-dev zlib1g-dev pkg-config
+```
+
+Install a Rust toolchain, then:
+
+```bash
+make doctor
+make release
+sudo ./target/release/kernel-sentinel --policy policies/default.yaml
+```
+
+For newline-delimited JSON suitable for Cortex or another collector:
+
+```bash
+sudo ./target/release/kernel-sentinel --output json
+```
+
+`src/bpf/vmlinux.h` is generated from the running kernel and is intentionally not committed.
+
+## Policy mode
+
+The runtime stays audit-only unless an explicit cgroup is selected. The prevention experiment rejects execution below `/tmp` only for that cgroup:
+
+```bash
+sudo ./target/release/kernel-sentinel --enforce-cgroup <CGROUP_ID>
+```
+
+The policy map is empty by default; there is no global deny mode. The narrow scope is deliberate because mistakes at an LSM decision point are much more expensive than mistakes in a userspace detection rule.
+
+## Project layout
+
+```text
+src/                    Rust userspace sensor
+src/bpf/                eBPF/BPF LSM programs
+policies/               YAML runtime detection policies
+cortex/                 reliability reasoning agent
+cortex/testdata/        deterministic replay incidents
+docs/                   architecture, quickstart and design notes
+scripts/                bootstrap, demo and environment checks
+.github/workflows/      CI and release automation
+```
+
+## Validation
+
+CI checks:
+
+- Rust formatting, unit tests and Clippy;
+- native eBPF-enabled compilation on Linux;
+- Cortex Go tests.
+
+Locally:
+
+```bash
+make test
+```
+
+The live eBPF build is Linux-only, but the Cortex demo and tests run anywhere Go runs.
+
+## Design notes
+
+- [`docs/quickstart.md`](docs/quickstart.md) — clone, build and test paths.
+- [`docs/cortex.md`](docs/cortex.md) — proof-carrying reliability-agent architecture.
+- [`docs/interview-demo.md`](docs/interview-demo.md) — five-minute walkthrough.
+- [`docs/architecture.md`](docs/architecture.md) — kernel/userspace split.
+- [`docs/kernel-hooks.md`](docs/kernel-hooks.md) — hook selection and trade-offs.
+- [`docs/performance.md`](docs/performance.md) — benchmark methodology.
+- [`docs/threat-model.md`](docs/threat-model.md) — security assumptions.
+- [`docs/roadmap.md`](docs/roadmap.md) — correctness and compatibility work.
 
 ## Known limitations
 
+- Cortex currently reasons over supplied evidence rather than querying Prometheus/OpenTelemetry/Kubernetes directly;
+- no live production executor is registered by default;
 - container metadata is inferred from cgroup paths rather than OCI runtime state;
 - the credential event records an attempted `setuid`, not a committed transition;
 - PID reuse is not handled yet in the process table;
-- there is no fallback backend for kernels without BPF LSM;
-- ancestry-aware rules are still single-event matches rather than stateful event sequences;
+- there is no fallback sensor backend for kernels without BPF LSM;
 - kernel integration tests still need a dedicated VM matrix.
 
 ## License

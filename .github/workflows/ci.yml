@@ -41,6 +41,15 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23.x"
+      - name: Check formatting
+        working-directory: cortex
+        run: test -z "$(gofmt -l .)"
+      - name: Vet reliability agent
+        working-directory: cortex
+        run: go vet ./...
       - name: Test reliability agent
         working-directory: cortex
         run: go test ./...
+      - name: Build Cortex CLI
+        working-directory: cortex
+        run: go build ./cmd/cortex
