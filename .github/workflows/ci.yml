@@ -33,3 +33,14 @@ jobs:
           "$TOOL" btf dump file /sys/kernel/btf/vmlinux format c > src/bpf/vmlinux.h
       - name: Check native build
         run: cargo check --features bpf
+
+  cortex:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+      - name: Test reliability agent
+        working-directory: cortex
+        run: go test ./...
